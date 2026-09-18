@@ -7,24 +7,18 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 APP=/opt/zmob-agent
-PYTHON_BIN=python3
 
-echo "[1/6] Installing prerequisites..."
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip openssl curl
+DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip openssl curl wget
 
-echo "[2/6] Creating application..."
 mkdir -p "$APP"
 python3 -m venv "$APP/venv"
 
-echo "[3/6] Installing MCP..."
 "$APP/venv/bin/pip" install --upgrade pip
 "$APP/venv/bin/pip" install "mcp==2.2.0"
 
-echo "[4/6] Writing agent..."
 curl -fsSL https://raw.githubusercontent.com/rezaziyai/zmob-vps-agent/main/server.py -o "$APP/server.py"
 
-echo "[5/6] Creating service..."
 install -d -m 700 /etc/zmob-agent
 TOKEN="$(openssl rand -hex 32)"
 printf 'ZMOB_AGENT_TOKEN=%s\n' "$TOKEN" > /etc/zmob-agent/agent.env
@@ -51,11 +45,16 @@ EOF
 systemctl daemon-reload
 systemctl enable --now zmob-agent
 
-echo "[6/6] Checking service..."
-sleep 2
-systemctl --no-pager --full status zmob-agent || true
+if ! command -v cloudflared >/dev/null 2>&1; then
+  echo "Installing cloudflared..."
+  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -O /tmp/cloudflared.deb
+  apt-get install -y /tmp/cloudflared.deb
+fi
 
-echo
-echo "ZMOB VPS Agent installed."
-echo "Local MCP endpoint: http://127.0.0.1:8765/mcp"
-echo "Token stored in: /etc/zmob-agent/agent.env"
+echo ""
+echo "ZMOB Agent installed."
+echo "Local MCP: http://127.0.0.1:8765/mcp"
+echo ""
+echo "Cloudflare Tunnel setup:"
+echo "Run: cloudflared tunnel login"
+echo "Then we will create agent.4hh.ir tunnel routing."
